@@ -80,6 +80,14 @@ input:focus,select:focus{outline:0;border-color:var(--ink);background:#fff;box-s
 .next{margin:0 -1rem;padding:.5rem 1.25rem 1.4rem;background:var(--ink);color:#fff;border-radius:0 0 26px 26px}
 .nrow{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem}
 .next .because{display:block;margin-top:.5rem;font-size:.86rem;color:#C3CDD6}
+.next :focus-visible{outline-color:var(--hi)}
+.alarm{display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin-top:1.1rem}
+.alarm .lbl{font-size:.7rem;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:#A9B6C2;grid-column:1/-1;margin-bottom:.1rem}
+.alarm button,.awake{border:1px solid rgba(255,255,255,.24);background:transparent;color:#DCE3E9;border-radius:999px;padding:0 .5rem;min-height:2.75rem;font-size:.86rem;font-weight:600;cursor:pointer;transition:background .15s,color .15s,transform .12s}
+.alarm button[aria-pressed=true],.awake[aria-pressed=true]{background:#fff;border-color:#fff;color:var(--ink)}
+.alarm button:active,.awake:active{transform:scale(.96)}
+.awake{padding:0 .9rem}
+.anote{margin:.7rem 0 0;font-size:.8rem;color:#A9B6C2;display:flex;flex-wrap:wrap;align-items:center;gap:.6rem}
 .next .eyebrow{display:block;font-size:.7rem;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:#A9B6C2}
 .next b{display:block;font:600 3.1rem/1 var(--display);letter-spacing:-.045em;margin-top:.4rem;font-variant-numeric:tabular-nums}
 .next .in{font-size:.85rem;font-weight:600;color:var(--ink);background:var(--hi);border-radius:999px;padding:.32rem .8rem;white-space:nowrap;margin-bottom:.3rem}
@@ -202,9 +210,9 @@ dialog .foot{margin-top:1.2rem;text-align:left}
 /* motion: one entrance when a screen opens, nothing on later edits */
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes fade{from{opacity:0}}
-@keyframes toast{from{opacity:0;transform:translate(-50%,14px) scale(.96)}}
+@keyframes toast{from{opacity:0;transform:translateY(14px) scale(.96)}}
 .swap{animation:fade .22s ease}
-.toast{position:fixed;left:50%;bottom:calc(1.2rem + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:1rem;white-space:nowrap;padding:.6rem .6rem .6rem 1.1rem;border-radius:16px;color:#fff;font-size:.93rem;font-weight:500;background:rgba(23,31,39,.86);-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);box-shadow:0 14px 30px -10px rgba(0,0,0,.45);animation:toast .32s var(--ease)}
+.toast{position:fixed;left:1rem;right:1rem;margin:0 auto;width:fit-content;bottom:calc(1.2rem + env(safe-area-inset-bottom));z-index:5;display:flex;align-items:center;gap:1rem;padding:.6rem .6rem .6rem 1.1rem;border-radius:16px;color:#fff;font-size:.93rem;font-weight:500;background:rgba(23,31,39,.86);-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);box-shadow:0 14px 30px -10px rgba(0,0,0,.45);animation:toast .32s var(--ease)}
 .toast button{border:0;background:rgba(255,255,255,.14);color:var(--hi);font-weight:600;border-radius:10px;padding:.5rem .9rem;min-height:2.75rem;cursor:pointer}
 .toast button:active{opacity:.6}
 .enter>*{animation:rise .42s var(--ease) both}
@@ -643,10 +651,56 @@ function drawNext(){
     const late=x.t<=x.now;
     h=`<span class="eyebrow">Next trip out</span><div class="nrow"><b>${late?'Now':fmt(x.t)}</b>`
       +(late?(x.t<x.now?`<span class="in">due since ${fmt(x.t)}</span>`:''):`<span class="in">in ${span(x.t-x.now)}</span>`)
-      +`</div><span class="because">${esc(x.why)}</span>`;
+      +`</div><span class="because">${esc(x.why)}%A%</span>`;
   }else if(outs.length)h=`<span class="eyebrow">No more trips today</span><div class="nrow"><b>${fmt(outs[0].t)}</b><span class="in">first trip tomorrow</span></div>`;
-  ['#next','#next-j'].forEach(q=>{$(q).innerHTML=h;$(q).hidden=!h});
+  const al=S.alarm,on=al!=null;
+  const row=`<div class="alarm"><span class="lbl">Alarm</span>`+LEADS.map(([v,l])=>`<button type="button" data-alarm="${v??''}" aria-pressed="${on?al===v:v===null}">${l}</button>`).join('')+'</div>'
+    +(on?`<p class="anote">Rings while this page is open. A locked phone stays silent.`
+      +('wakeLock' in navigator?`<button type="button" class="awake" data-awake="1" aria-pressed="${!!S.awake}">Keep the screen on</button>`:'')+'</p>':'');
+  $('#next').innerHTML=h?h.replace('%A%','')+row:'';$('#next').hidden=!h;
+  $('#next-j').innerHTML=h.replace('%A%',on?(al?` · alarm ${al} min before`:' · alarm when due'):'');$('#next-j').hidden=!h;
 }
+
+/* ---------- alarm: rings a set time before the next trip, while the page is open ---------- */
+const LEADS=[[null,'Off'],[0,'On time'],[5,'5 min'],[10,'10 min']];
+let actx=null,rang=null,lock=null;
+function unlockSound(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}}
+function chime(notes=[0,.22,.44,1.1,1.32,1.54]){
+  if(!actx||actx.state!=='running')return;
+  const t0=actx.currentTime+.03;
+  notes.forEach((d,i)=>{
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type='sine';o.frequency.value=[880,1108.7,1318.5][i%3];
+    g.gain.setValueAtTime(0,t0+d);g.gain.linearRampToValueAtTime(.28,t0+d+.02);g.gain.exponentialRampToValueAtTime(.001,t0+d+.5);
+    o.connect(g);g.connect(actx.destination);o.start(t0+d);o.stop(t0+d+.55);
+  });
+}
+async function holdAwake(){   // the screen only stays on if the owner asked for it
+  try{
+    const want=S.alarm!=null&&S.awake&&'wakeLock' in navigator&&!document.hidden;
+    if(want&&!lock){lock=await navigator.wakeLock.request('screen');lock.addEventListener('release',()=>{lock=null})}
+    else if(!want&&lock){const l=lock;lock=null;l.release()}
+  }catch(e){}
+}
+function checkAlarm(quiet){
+  const x=predict();
+  if(S.alarm==null||!x||x.now<x.t-S.alarm||rang===x.t)return;
+  rang=x.t;
+  if(quiet)return;              // already due when the page opened or the alarm was switched on: the card says so
+  const name=pupName(),msg=x.now<x.t?`${name} goes out in ${span(x.t-x.now)}, at ${fmt(x.t)}`:`Time to take ${name} out`;
+  chime();try{navigator.vibrate&&navigator.vibrate([220,120,220])}catch(e){}
+  document.title=msg+' · Potty Plan';
+  drawNext();toast(msg,null,'OK');
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-alarm],[data-awake]');if(!b)return;
+  if(b.dataset.awake)S.awake=!S.awake;
+  else{S.alarm=b.dataset.alarm===''?null:+b.dataset.alarm;rang=null;if(S.alarm!=null){unlockSound();setTimeout(()=>chime([0]),60)}}
+  save();holdAwake();drawNext();checkAlarm(true);
+});
+document.addEventListener('pointerdown',()=>{if(S.alarm!=null)unlockSound()},{passive:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){drawNext();checkAlarm();holdAwake()}});
+setInterval(()=>checkAlarm(),5000);
 $('#rail').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const id=b.dataset.id,act=b.dataset.act;
@@ -864,7 +918,8 @@ const FAQ=[
   ['Are pee pads OK?','The goal is outside, in the same spot. A pad is a backup, not the plan.'],
   ['Is a bell on the door worth it?','It is optional. Ring it every time you open the potty door, always the same door, until the puppy rings it to ask. You can take it away later.'],
   ['When can my puppy roam the house?','When the journal shows day after day with no accidents. Open one room at a time. Too much freedom too soon is the classic mistake.'],
-  ['Do I treat while it is going, or after?','Both. Calm praise while it is going, then “yes” and a treat the second it finishes.']
+  ['Do I treat while it is going, or after?','Both. Calm praise while it is going, then “yes” and a treat the second it finishes.'],
+  ['Why did the alarm not ring?','The alarm only rings while this page is open and the screen is on. A locked phone stays silent. For reminders that ring on a locked phone, use “Add a week of reminders to my calendar” on the Schedule.']
 ];
 $('#faq').innerHTML=FAQ.map(([q,a])=>`<details><summary>${q}</summary><p>${a}</p></details>`).join('');
 
@@ -939,12 +994,12 @@ grab.addEventListener('pointercancel',dropSheet);
 
 /* deleting is instant, with a way back */
 let undoFn=null,toastT;
-function toast(msg,undo){
-  const t=$('#toast');undoFn=undo;$('#toast-msg').textContent=msg;
+function toast(msg,undo,stay){   // stay = button label for a notice that waits to be dismissed
+  const t=$('#toast');undoFn=undo;$('#toast-msg').textContent=msg;$('#toast-undo').textContent=stay||'Undo';
   t.hidden=true;void t.offsetWidth;t.hidden=false;
-  clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true;undoFn=null},6000);
+  clearTimeout(toastT);if(!stay)toastT=setTimeout(()=>{t.hidden=true;undoFn=null},6000);
 }
-$('#toast-undo').addEventListener('click',()=>{const f=undoFn;undoFn=null;$('#toast').hidden=true;if(f)f()});
+$('#toast-undo').addEventListener('click',()=>{const f=undoFn;undoFn=null;$('#toast').hidden=true;document.title='Potty Plan';if(f)f()});
 
 /* touch details: pressed states show on touch-down on iOS; the header turns to glass once it sticks */
 document.addEventListener('touchstart',()=>{},{passive:true});
@@ -987,7 +1042,7 @@ function icsText(){
   const clean=s=>s.replace(/([\\;,])/g,'\\$1'),hm=t=>p(Math.floor(t/60))+p(t%60)+'00';
   const evs=sorted().filter(r=>r.kind==='out').map(r=>['BEGIN:VEVENT','UID:'+uid()+uid()+'@pottyplan','DTSTAMP:'+stamp,
     `DTSTART:${ymd}T${hm(r.t)}`,`DTEND:${ymd}T${hm(Math.min(r.t+5,1439))}`,'RRULE:FREQ=DAILY;COUNT=7',
-    'SUMMARY:'+clean(`${name} out: ${r.why}`),'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+clean(name+' out'),'TRIGGER:PT0M','END:VALARM','END:VEVENT'].join('\r\n'));
+    'SUMMARY:'+clean(`${name} out: ${r.why}`),'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+clean(name+' out'),'TRIGGER:'+(S.alarm?'-PT'+S.alarm+'M':'PT0M'),'END:VALARM','END:VEVENT'].join('\r\n'));
   return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Potty Plan//EN','CALSCALE:GREGORIAN',...evs,'END:VCALENDAR'].join('\r\n')+'\r\n';
 }
 $('#ics').addEventListener('click',()=>{
@@ -1018,6 +1073,7 @@ const stagger=sel=>document.querySelectorAll(sel+' .row').forEach((el,i)=>el.sty
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b&&!b.disabled)show(b.dataset.view)});
 setInterval(drawNext,30000);
 show(S.view==='journal'?'journal':S.rows?'plan':'setup');
+checkAlarm(true);holdAwake();
 </script>
 </body>
 </html>
