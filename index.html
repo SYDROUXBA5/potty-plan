@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Potty Plan</title>
+<meta name="description" content="Build a potty-training schedule for your puppy and keep a journal that tells you how to fix it.">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-title" content="Potty Plan">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F5C84C'/%3E%3Ccircle cx='32' cy='32' r='15' fill='none' stroke='%23171F27' stroke-width='6'/%3E%3C/svg%3E">
+<style>
+/* fonts are served from this site, so no visitor data goes to a font host (licences in fonts/) */
+@font-face{font-family:"Bricolage Grotesque";src:url(fonts/bricolage-grotesque.woff2) format("woff2");font-weight:400 800;font-display:swap}
+@font-face{font-family:"Instrument Sans";src:url(fonts/instrument-sans.woff2) format("woff2");font-weight:400 600;font-display:swap}
+:root{
+  color-scheme:light;
+  --ink:#171F27; --paper:#FFFFFF; --page:#EDF2F6; --hi:#F5C84C; --sky:#A9D3EE;
+  --rule:#D3DDE5; --mute:#56636F; --warn:#A8281F; --warn-bg:#FBEDEA;
+  --display:"Bricolage Grotesque",system-ui,sans-serif;
+  --body:"Instrument Sans",system-ui,sans-serif;
+  --gutter:4.9rem; --markcol:1.6rem;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);font:400 1rem/1.45 var(--body)}
+.sheet{max-width:30rem;margin:0 auto;min-height:100vh;background:var(--paper);padding:0 1rem 4rem}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* header */
+.top{margin:0 -1rem;padding:1.4rem 1rem .9rem;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:2px solid var(--ink)}
+h1{font:800 2.1rem/1 var(--display);letter-spacing:-.02em;margin:0}
+#sub{margin:.35rem 0 0;color:var(--mute);font-size:.95rem;min-height:1.3em}
+.tabs{display:flex;gap:.4rem;margin-top:.9rem}
+.tabs button{flex:1;padding:.6rem;border:2px solid var(--ink);background:var(--paper);border-radius:999px;font-weight:600;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--paper)}
+.tabs button:disabled{opacity:.35;cursor:default}
+
+/* setup */
+.lede{font-size:1.05rem;margin:1.2rem 0 0}
+.q{border:0;border-top:1px solid var(--rule);margin:1.3rem 0 0;padding:1.1rem 0 0}
+.q legend{font:700 1.2rem/1.2 var(--display);padding:0;float:left;width:100%;margin-bottom:.7rem}
+.q>*:not(legend){clear:both}
+.hint{color:var(--mute);font-size:.9rem;margin:0 0 .7rem}
+.pair{display:flex;gap:.7rem;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:.25rem;font-size:.9rem;font-weight:500;flex:1;min-width:7rem}
+input[type=text],input[type=number],input[type=time],select{
+  border:2px solid var(--ink);border-radius:10px;padding:.6rem .7rem;background:var(--paper);min-height:2.9rem;width:100%}
+.item{display:flex;align-items:flex-end;gap:.6rem;margin-bottom:.6rem}
+.item .field{min-width:0}
+.x{border:0;background:none;text-decoration:underline;color:var(--mute);padding:.8rem .2rem;cursor:pointer;font-size:.9rem}
+.add{border:2px dashed var(--ink);background:none;border-radius:10px;padding:.6rem .9rem;font-weight:600;cursor:pointer}
+.choice{display:flex;gap:.5rem}
+.choice label{flex:1;border:2px solid var(--ink);border-radius:10px;padding:.7rem;text-align:center;font-weight:600;cursor:pointer}
+.choice input{position:absolute;opacity:0}
+.choice label:has(input:checked){background:var(--sky)}
+.choice label:has(input:focus-visible){outline:3px solid var(--ink);outline-offset:2px}
+.go{width:100%;margin-top:1.6rem;padding:1rem;border:2px solid var(--ink);border-radius:12px;background:var(--hi);font:800 1.15rem var(--display);cursor:pointer}
+.err{color:var(--warn);font-weight:600;margin:1rem 0 0}
+
+/* schedule */
+.next{margin:1.1rem 0 0;padding:.9rem 1rem;background:var(--ink);color:var(--paper);border-radius:12px;display:flex;justify-content:space-between;align-items:baseline;gap:1rem}
+.next b{font:800 1.5rem/1 var(--display)}
+.next span{font-size:.9rem;opacity:.85}
+.warnbox{margin:1rem 0 0;padding:.9rem 1rem;border:2px solid var(--warn);border-radius:12px;background:var(--warn-bg);font-size:.95rem}
+.warnbox strong{display:block;font:700 1.05rem var(--display);color:var(--warn);margin-bottom:.2rem}
+.warnbox.mild{border-color:var(--ink);background:#FFF7DD}
+.warnbox.mild strong{color:var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;margin:1.2rem 0 .3rem;padding:0;list-style:none;font-size:.82rem;color:var(--mute)}
+.legend li{display:flex;align-items:center;gap:.4rem}
+
+.rail{list-style:none;margin:.6rem 0 0;padding:0;position:relative}
+.rail::before{content:"";position:absolute;top:.8rem;bottom:.8rem;left:calc(var(--gutter) + var(--markcol)/2 - 1px);width:2px;background:var(--rule)}
+.row{display:grid;grid-template-columns:var(--gutter) var(--markcol) 1fr auto;align-items:center;min-height:3.1rem;position:relative}
+.row time{font:600 .92rem var(--display);font-variant-numeric:tabular-nums;text-align:right;padding-right:.55rem;color:var(--mute);white-space:nowrap}
+.row.out time{color:var(--ink)}
+.mark{justify-self:center;width:.8rem;height:.8rem;border-radius:50%;background:var(--paper);border:2px solid var(--ink);position:relative;z-index:1}
+.trigger .mark,.yours .mark{background:var(--hi);width:1rem;height:1rem}
+.meal .mark,.water .mark{border-radius:3px;background:var(--sky)}
+.nap .mark,.play .mark,.note .mark{width:.5rem;height:.5rem;border-color:var(--mute);background:var(--mute)}
+.what{padding:.45rem 0 .45rem .5rem;display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .55rem}
+.stamp{font:800 1.25rem/1 var(--display);letter-spacing:.01em;padding:.18rem .42rem;border-radius:4px 7px 5px 8px}
+.trigger .stamp,.yours .stamp,.legend .stamp.t{background:var(--hi)}
+.clock .stamp,.legend .stamp.c{box-shadow:inset 0 0 0 2px var(--ink)}
+.legend .stamp{font-size:.72rem}
+.legend .sq{width:.75rem;height:.75rem;border-radius:3px;background:var(--sky);border:2px solid var(--ink)}
+.why{font-size:.93rem}
+.label{font-weight:600}
+.meal .label,.water .label{background:var(--sky);padding:.15rem .5rem;border-radius:999px}
+.nap .what{background:repeating-linear-gradient(135deg,transparent 0 6px,var(--rule) 6px 7.5px);border-radius:8px;padding:1rem .6rem;margin:.25rem 0 .25rem .4rem;color:var(--mute)}
+.tag{font-size:.75rem;font-weight:600;border:1.5px solid var(--warn);color:var(--warn);border-radius:999px;padding:.05rem .45rem}
+.edit{border:0;background:none;color:var(--mute);font-size:.82rem;text-decoration:underline;padding:.9rem 0 .9rem .6rem;cursor:pointer}
+.row.editing{display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;background:var(--page);border-radius:12px;padding:.7rem;margin:.3rem 0;z-index:1}
+.row.editing .field{flex:1 1 100%}
+.btn{border:2px solid var(--ink);background:var(--paper);border-radius:10px;padding:.55rem .9rem;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--hi)}
+.addrow{margin-top:1rem;padding:.9rem;background:var(--page);border-radius:12px;display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end}
+.addrow .wide{flex:1 1 100%}
+.below{margin-top:1.1rem}
+details{border-top:1px solid var(--rule);padding:.9rem 0}
+details:last-of-type{border-bottom:1px solid var(--rule)}
+summary{font:700 1.05rem var(--display);cursor:pointer}
+details ul{margin:.7rem 0 0;padding-left:1.1rem}
+details li{margin-bottom:.35rem}
+
+/* journal */
+.daynav{display:flex;align-items:center;justify-content:space-between;margin:1.1rem 0 0}
+.daynav b{font:700 1.1rem var(--display)}
+.daynav button{width:2.9rem;height:2.9rem;border:2px solid var(--ink);border-radius:50%;background:var(--paper);font-size:1.3rem;line-height:1;cursor:pointer}
+.daynav button:disabled{opacity:.3;cursor:default}
+.pad{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:1rem}
+.pad button{min-height:5rem;border:2px solid var(--ink);border-radius:14px;font:800 1.45rem var(--display);cursor:pointer;background:var(--hi)}
+.pad .p-none{background:var(--paper)}
+.pad .p-acc{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
+.pad button:active,.also button:active{transform:translateY(1px)}
+.also{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin-top:.8rem;font-size:.9rem;color:var(--mute)}
+.also button{border:2px solid var(--ink);background:var(--sky);border-radius:999px;padding:.5rem .9rem;font-weight:600;color:var(--ink);cursor:pointer;min-height:2.7rem}
+.rail.bare::before{display:none}
+.empty{padding:1.4rem 0;color:var(--mute)}
+.j time{color:var(--ink)}
+.j .stamp{font-size:1.05rem}
+.j.went .mark{background:var(--hi);width:1rem;height:1rem}
+.j.went .stamp{background:var(--hi)}
+.j.none .stamp{box-shadow:inset 0 0 0 2px var(--ink)}
+.j.acc .mark{background:var(--warn);border-color:var(--warn);width:1rem;height:1rem}
+.j.acc .stamp{background:var(--warn);color:#fff}
+.j.ev .mark{border-radius:3px;background:var(--sky)}
+.j.ev .label{background:var(--sky);padding:.15rem .5rem;border-radius:999px}
+.why.note{flex-basis:100%;color:var(--mute);font-style:italic}
+.why.ask{color:var(--mute)}
+.row.editing.jed{display:block;padding:.9rem}
+.jed .edhead{margin:0 0 .8rem;font-size:1.05rem}
+.jed .chipset{margin-bottom:.9rem}
+.jed .cq{display:block;font-weight:600;font-size:.92rem;margin-bottom:.4rem}
+.jed .cq small{font-weight:400;color:var(--mute)}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem}
+.chip{border:2px solid var(--ink);background:var(--paper);border-radius:999px;padding:.45rem .8rem;font-weight:500;cursor:pointer;min-height:2.7rem}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.jed .field{margin-bottom:.7rem}
+.jed .acchint{margin:0 0 .9rem;padding:.6rem .7rem;border-left:3px solid var(--warn);background:var(--paper);font-size:.9rem}
+.jed .actions{display:flex;gap:.5rem;margin-top:.3rem}
+
+/* help, share, calendar */
+.toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:.8rem}
+.helpbtn{flex:none;border:2px solid var(--ink);background:var(--paper);border-radius:999px;padding:.35rem .85rem;font-weight:600;cursor:pointer}
+.tools{margin-top:1.3rem}
+.tools .btn{width:100%;min-height:3rem}
+.tools .hint{margin:.5rem 0 0}
+.tools textarea{display:block;width:100%;margin-top:.5rem;border:2px solid var(--ink);border-radius:10px;padding:.6rem;font:inherit;color:var(--ink)}
+.foot{margin:2.2rem 0 0;color:var(--mute);font-size:.82rem}
+dialog{border:0;padding:0 1rem 1.5rem;width:min(30rem,100%);max-width:100%;max-height:88vh;margin:auto auto 0;border-radius:18px 18px 0 0;color:var(--ink);background:var(--paper)}
+dialog::backdrop{background:rgba(23,31,39,.55)}
+.dhead{position:sticky;top:0;background:var(--paper);display:flex;justify-content:space-between;align-items:center;padding:1rem 0 .7rem;z-index:1}
+dialog h2{font:800 1.5rem var(--display);margin:0}
+dialog details p{margin:.6rem 0 0}
+dialog .foot{margin-top:1.2rem}
+
+/* what the journal says */
+.sug{margin:1rem 0 0;padding:1rem;border:2px solid var(--ink);border-radius:12px;background:var(--hi)}
+.sug .from{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.sug strong{display:block;font:800 1.35rem/1.15 var(--display);margin:.25rem 0 .45rem}
+.sug p{margin:0 0 .9rem;font-size:.95rem}
+.sug .actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.sug .btn.primary{background:var(--ink);color:var(--paper)}
+.sug .btn:not(.primary){background:transparent}
+.quiet{margin:1rem 0 0;padding:.7rem .9rem;background:var(--page);border-radius:10px;color:var(--mute);font-size:.92rem}
+.okbox{margin:1rem 0 0;padding:.8rem 1rem;border:2px solid var(--ink);border-radius:12px;background:var(--sky);font-size:.95rem}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header class="top">
+    <div class="toprow"><h1 id="title">Potty Plan</h1><button type="button" class="helpbtn" id="help-open">Help</button></div>
+    <p id="sub"></p>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-plan" data-view="plan">Schedule</button>
+      <button role="tab" id="tab-journal" data-view="journal">Journal</button>
+      <button role="tab" id="tab-setup" data-view="setup">Setup</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- SETUP -->
+    <section id="view-setup" role="tabpanel" aria-labelledby="tab-setup">
+      <p class="lede">Answer a few questions about your puppy's day. You get a list of times to take the puppy out.</p>
+      <form id="setup" novalidate>
+        <fieldset class="q">
+          <legend>Who's the puppy?</legend>
+          <div class="pair">
+            <label class="field">Name <input type="text" data-s="name" autocomplete="off" placeholder="Max"></label>
+            <label class="field">Age in weeks <input type="number" data-s="age" min="6" max="104" inputmode="numeric" placeholder="10"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="q">
+          <legend>Wake-up and bedtime</legend>
+          <div class="pair">
+            <label class="field">Wakes up <input type="time" data-s="wake"></label>
+            <label class="field">Goes to bed <input type="time" data-s="bed"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="q">
+          <legend>Meal times</legend>
+          <p class="hint">Water goes down with every meal. Food and water at set times tell you when the puppy needs to go.</p>
+          <div id="list-meals"></div>
+        </fieldset>
+
+        <fieldset class="q">
+          <legend>Extra water times</legend>
+          <p class="hint">Any drink outside meals, such as after play.</p>
+          <div id="list-water"></div>
+        </fieldset>
+
+        <fieldset class="q">
+          <legend>Naps</legend>
+          <p class="hint">The puppy goes out the moment it wakes.</p>
+          <div id="list-naps"></div>
+        </fieldset>
+
+        <fieldset class="q">
+          <legend>Play times</legend>
+          <p class="hint">The puppy goes out when play ends.</p>
+          <div id="list-play"></div>
+        </fieldset>
+
+        <fieldset class="q">
+          <legend>Is someone home all day?</legend>
+          <div class="choice">
+            <label><input type="radio" name="home" value="yes"> Yes</label>
+            <label><input type="radio" name="home" value="no"> No</label>
+          </div>
+          <div class="pair" id="away" style="margin-top:.8rem">
+            <label class="field">Nobody home from <input type="time" data-s="awayS"></label>
+            <label class="field">until <input type="time" data-s="awayE"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="q">
+          <legend>Where does the puppy rest between trips?</legend>
+          <div class="choice">
+            <label><input type="radio" name="rest" value="crate"> Crate</label>
+            <label><input type="radio" name="rest" value="pen"> Pen</label>
+          </div>
+        </fieldset>
+
+        <fieldset class="q" id="jchanges" hidden>
+          <legend>Changes from the journal</legend>
+          <p class="hint" id="jchanges-text"></p>
+          <button type="button" class="add" data-undo="1">Undo these changes</button>
+        </fieldset>
+
+        <p class="err" id="err" role="alert" hidden></p>
+        <button type="submit" class="go" id="go">Build the schedule</button>
+      </form>
+    </section>
+
+    <!-- SCHEDULE -->
+    <section id="view-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
+      <div class="next" id="next" aria-live="polite"></div>
+      <div id="notice"></div>
+      <div id="sug-p"></div>
+      <div id="warn"></div>
+      <ul class="legend" aria-label="What the marks mean">
+        <li><span class="stamp t">OUT</span> after a trigger</li>
+        <li><span class="stamp c">OUT</span> on the hour</li>
+        <li><span class="sq"></span> food and water</li>
+      </ul>
+      <ol class="rail" id="rail"></ol>
+
+      <form class="addrow" id="addrow">
+        <label class="field">Time <input type="time" id="add-time" value="12:00"></label>
+        <label class="field">What <select id="add-kind"><option value="out">Trip out</option><option value="note">Note</option></select></label>
+        <label class="field wide" id="add-text-wrap" hidden>Note <input type="text" id="add-text" placeholder="Vet at 3"></label>
+        <button class="btn primary wide" type="submit">Add this row</button>
+      </form>
+
+      <div class="tools">
+        <button type="button" class="btn" id="ics">Add a week of reminders to my calendar</button>
+        <p class="hint">One reminder per trip, every day for 7 days. They do not update if the schedule changes.</p>
+      </div>
+
+      <div class="below">
+        <details>
+          <summary>Every trip the same</summary>
+          <ul id="tips"></ul>
+        </details>
+        <details>
+          <summary>How this schedule was built</summary>
+          <ul>
+            <li><b>Triggers:</b> a trip at wake-up, after each nap, <span id="how-min">20</span> minutes after food or water, when play ends, and last thing before bed.</li>
+            <li><b>The clock:</b> wherever more than an hour would pass between those trips, one on the hour.</li>
+            <li><b>Food and water:</b> at set times, so you know when it comes back out.</li>
+            <li>Two trips less than 15 minutes apart become one.</li>
+          </ul>
+        </details>
+      </div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section id="view-journal" role="tabpanel" aria-labelledby="tab-journal" hidden>
+      <div class="daynav">
+        <button type="button" id="day-prev" aria-label="Previous day">‹</button>
+        <b id="day-label"></b>
+        <button type="button" id="day-next" aria-label="Next day">›</button>
+      </div>
+      <p class="hint" id="past-hint" style="margin:.6rem 0 0" hidden>You are adding to a past day. Set the time after you tap.</p>
+      <div class="pad" id="pad">
+        <button type="button" data-log="pee">Pee</button>
+        <button type="button" data-log="poop">Poop</button>
+        <button type="button" data-log="nothing" class="p-none">Nothing</button>
+        <button type="button" data-log="accident" class="p-acc">Accident</button>
+      </div>
+      <div class="also" id="also">
+        <span>Also log</span>
+        <button type="button" data-ev="drank">Drank</button>
+        <button type="button" data-ev="ate">Ate</button>
+        <button type="button" data-ev="woke">Woke up</button>
+      </div>
+      <div id="sug-j"></div>
+      <ol class="rail" id="jrail"></ol>
+      <div class="tools">
+        <button type="button" class="btn" id="share">Share this journal</button>
+        <p class="hint" id="share-msg">Sends the journal as text, to whoever you choose.</p>
+      </div>
+    </section>
+  </main>
+  <footer class="foot">Everything you enter stays on this phone. Nothing is sent anywhere unless you tap Share.</footer>
+
+  <dialog id="help" aria-labelledby="help-title">
+    <div class="dhead"><h2 id="help-title">Common questions</h2><button type="button" class="btn" id="help-close">Close</button></div>
+    <div id="faq"></div>
+    <p class="foot">Everything you enter stays on this phone. Nothing is sent anywhere unless you tap Share. No account, no tracking.</p>
+    <button type="button" class="x" id="erase">Erase everything on this phone</button>
+  </dialog>
+</div>
+
+<script>
+const KEY='pottyplan.v1';
+const DEF={name:'',age:'',wake:'06:30',bed:'22:00',meals:['07:00','12:00','17:00'],water:[],naps:[],play:[],home:true,awayS:'08:30',awayE:'17:30',rest:'crate',
+  after:{drank:20,ate:20,woke:0,played:0},half:null}; // after + half are changed by journal suggestions
+const $=s=>document.querySelector(s);
+const m=s=>{const[a,b]=String(s).split(':').map(Number);return a*60+b};
+const hhmm=t=>String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+const fmt=t=>new Date(2000,0,1,Math.floor(t/60),t%60).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}).replace(/\s?([AP])M/i,(_, c)=>' '+c.toLowerCase()+'m');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const span=n=>{const h=Math.floor(n/60),r=n%60;return (h?h+' h':'')+(h&&r?' ':'')+(r||!h?r+' min':'')};
+
+let S=load(), editing=null, view='setup';
+function load(){
+  try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.setup){j.setup=JSON.parse(JSON.stringify({...DEF,...j.setup}));j.log=j.log||[];return j}}catch(e){}
+  return {setup:JSON.parse(JSON.stringify(DEF)),rows:null,edited:false,log:[]};
+}
+const pupName=()=>S.setup.name.trim()||'Your puppy';
+const poss=n=>n+(/s$/i.test(n)?'’':'’s');
+function header(){
+  const st=S.setup;let t='Potty Plan',s='';
+  if(view==='journal'){
+    const es=S.log.filter(e=>e.d===day&&e.type==='trip'),acc=es.filter(e=>e.accident).length;
+    t=poss(pupName())+' journal';
+    s=es.length?`${es.length} ${es.length===1?'trip':'trips'} logged · `+(acc?`${acc} ${acc===1?'accident':'accidents'}`:'no accidents'):'Nothing logged yet';
+  }else if(S.rows){
+    t=poss(pupName())+' day';
+    s=[st.age?st.age+' weeks old':'',S.rows.filter(r=>r.kind==='out').length+' trips out'].filter(Boolean).join(' · ');
+  }
+  $('#title').textContent=t;$('#sub').textContent=s;
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+/* ---------- schedule rules ---------- */
+function mealName(t){return t<630?'Breakfast':t<900?'Lunch':'Dinner'}
+function build(st){
+  const wake=m(st.wake),bed=m(st.bed),rows=[],trips=[];
+  let last=wake;
+  const naps=st.naps.map(n=>({s:m(n.s),e:m(n.e)})).sort((a,b)=>a.s-b.s)
+    .filter(n=>{const ok=n.e>n.s&&n.s>=last&&n.e<=bed;if(ok)last=n.e;return ok});
+  const asleep=t=>naps.some(n=>t>n.s&&t<n.e);
+  const inDay=t=>t>=wake&&t<=bed;
+  const trip=(t,why)=>{if(inDay(t)&&!asleep(t))trips.push({t,why})};
+
+  const af=st.after;
+  trip(wake,'Just woke up');
+  if(af.woke)trip(wake+af.woke,'Second trip after waking');
+  st.meals.map(m).filter(inDay).forEach(t=>{rows.push({t,kind:'meal',label:mealName(t)+' + water'});trip(t+Math.min(af.ate,af.drank),'After food and water')});
+  st.water.map(m).filter(inDay).forEach(t=>{rows.push({t,kind:'water',label:'Water'});trip(t+af.drank,'After a drink')});
+  naps.forEach(n=>{rows.push({t:n.s,kind:'nap',label:'Nap',until:n.e});trip(n.e,'Woke from a nap');if(af.woke)trip(n.e+af.woke,'Second trip after waking')});
+  st.play.map(p=>({s:m(p.s),e:m(p.e)})).filter(p=>p.e>p.s&&inDay(p.s)).forEach(p=>{rows.push({t:p.s,kind:'play',label:'Play'});trip(p.e,'Play just ended');if(af.played)trip(p.e+af.played,'Second trip after play')});
+  trip(bed,'Last trip, then bed');
+
+  // trigger trips less than 15 min apart become one
+  trips.sort((a,b)=>a.t-b.t);
+  const trig=[];
+  trips.forEach(x=>{const p=trig[trig.length-1];
+    if(p&&x.t-p.t<15){if(!p.why.includes(x.why))p.why+=' · '+x.why}else trig.push({...x})});
+
+  // the clock: on the hour wherever more than 60 awake minutes pass between trips
+  const clock=[];let segS=wake;
+  [...naps.map(n=>[n.s,n.e]),[bed,null]].forEach(([end,nextS])=>{
+    const pts=trig.filter(x=>x.t>=segS&&x.t<=end).map(x=>x.t);
+    if(pts[0]!==segS)pts.unshift(segS);
+    const endIsTrip=pts[pts.length-1]===end;
+    if(!endIsTrip)pts.push(end);
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i],b=pts[i+1],bIsTrip=i+1<pts.length-1||endIsTrip;
+      if(b-a>60)for(let h=Math.ceil((a+1)/60)*60;h<b;h+=60)
+        if(h-a>=15&&(!bIsTrip||b-h>=15))clock.push(h);
+    }
+    segS=nextS;
+  });
+  // a stretch the journal shortened from hourly to every 30 minutes
+  if(st.half){
+    const taken=[...trig.map(x=>x.t),...clock];
+    for(let t=Math.ceil(st.half.s/30)*30;t<=st.half.e;t+=30)
+      if(inDay(t)&&!asleep(t)&&!taken.some(x=>Math.abs(x-t)<15))rows.push({t,kind:'out',layer:'clock',why:'Every 30 minutes'});
+  }
+
+  trig.forEach(x=>rows.push({t:x.t,kind:'out',layer:'trigger',why:x.why}));
+  clock.forEach(t=>rows.push({t,kind:'out',layer:'clock',why:'On the hour'}));
+  rows.forEach(r=>r.id=uid());
+  return rows;
+}
+const ORDER={out:0,meal:1,water:1,note:1,play:2,nap:3};
+const sorted=()=>[...S.rows].sort((a,b)=>a.t-b.t||ORDER[a.kind]-ORDER[b.kind]);
+
+/* ---------- setup screen ---------- */
+const LISTS={
+  meals:{pair:false,add:'Add a meal',blank:'12:00',word:'Meal'},
+  water:{pair:false,add:'Add a water time',blank:'10:00',word:'Water'},
+  naps:{pair:true,add:'Add a nap',blank:{s:'13:00',e:'14:00'}},
+  play:{pair:true,add:'Add a play time',blank:{s:'16:00',e:'16:20'}}
+};
+function drawList(k){
+  const c=LISTS[k];
+  $('#list-'+k).innerHTML=S.setup[k].map((v,i)=>'<div class="item">'+(c.pair
+    ?`<label class="field">From <input type="time" data-k="${k}" data-i="${i}" data-f="s" value="${v.s}"></label>
+      <label class="field">until <input type="time" data-k="${k}" data-i="${i}" data-f="e" value="${v.e}"></label>`
+    :`<label class="field">${c.word} ${i+1} <input type="time" data-k="${k}" data-i="${i}" value="${v}"></label>`)
+    +`<button type="button" class="x" data-rm="${k}" data-i="${i}">Remove</button></div>`).join('')
+    +`<button type="button" class="add" data-add="${k}">${c.add}</button>`;
+}
+function drawSetup(){
+  const st=S.setup;
+  document.querySelectorAll('[data-s]').forEach(el=>el.value=st[el.dataset.s]);
+  document.querySelector(`[name=home][value=${st.home?'yes':'no'}]`).checked=true;
+  document.querySelector(`[name=rest][value=${st.rest}]`).checked=true;
+  $('#away').hidden=st.home;
+  Object.keys(LISTS).forEach(drawList);
+  const ch=changes();
+  $('#jchanges').hidden=!ch.length;$('#jchanges-text').textContent=ch.join(' ');
+  $('#go').textContent=S.rows?'Rebuild the schedule':'Build the schedule';
+}
+$('#setup').addEventListener('change',e=>{
+  const el=e.target,st=S.setup;
+  if(el.dataset.s)st[el.dataset.s]=el.value;
+  else if(el.dataset.k){const k=el.dataset.k,i=+el.dataset.i;if(el.dataset.f)st[k][i][el.dataset.f]=el.value;else st[k][i]=el.value}
+  else if(el.name==='home'){st.home=el.value==='yes';$('#away').hidden=st.home}
+  else if(el.name==='rest')st.rest=el.value;
+  save();
+});
+$('#setup').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.add){const k=b.dataset.add;S.setup[k].push(JSON.parse(JSON.stringify(LISTS[k].blank)));drawList(k);save()}
+  if(b.dataset.rm){const k=b.dataset.rm;S.setup[k].splice(+b.dataset.i,1);drawList(k);save()}
+  if(b.dataset.undo){S.setup.after={...DEF.after};S.setup.half=null;save();drawSetup();
+    if(S.rows){$('#err').hidden=false;$('#err').textContent='Undone. Rebuild the schedule to see it.'}}
+});
+$('#setup').addEventListener('submit',e=>{
+  e.preventDefault();
+  const st=S.setup,err=$('#err');let msg='';
+  const times=[st.wake,st.bed,...st.meals,...st.water,...st.naps.flatMap(n=>[n.s,n.e]),...st.play.flatMap(p=>[p.s,p.e])];
+  if(times.some(t=>!/^\d\d:\d\d$/.test(t)))msg='One of the times is empty. Fill it in or remove that line.';
+  else if(m(st.bed)<=m(st.wake))msg='Bedtime has to be later than wake-up.';
+  else if(st.naps.some(n=>m(n.e)<=m(n.s)))msg='A nap has to end after it starts.';
+  else if(st.play.some(p=>m(p.e)<=m(p.s)))msg='Play has to end after it starts.';
+  else if(!st.home&&(!st.awayS||!st.awayE||m(st.awayE)<=m(st.awayS)))msg='Check the hours nobody is home. The second time has to be later than the first.';
+  err.hidden=!msg;err.textContent=msg;
+  if(msg)return;
+  if(S.rows&&S.edited&&!confirm('This replaces the schedule you edited by hand. Rebuild it?'))return;
+  S.rows=build(st);S.edited=false;editing=null;save();show('plan');
+});
+
+/* ---------- schedule screen ---------- */
+function away(){const st=S.setup;return st.home?null:{s:m(st.awayS),e:m(st.awayE)}}
+function drawPlan(){
+  const st=S.setup,name=st.name.trim()||'Your puppy',rows=sorted(),aw=away();
+  header();drawNext();drawSug();
+  $('#notice').innerHTML=notice?`<div class="okbox">${notice}</div>`:'';
+  $('#how-min').textContent=Math.min(st.after.ate,st.after.drank);
+
+  let w='';
+  if(aw){const d=aw.e-aw.s;
+    if(d>120)w=`<div class="warnbox${d>240?'':' mild'}"><strong>${d>240?'This gap is too long':'A long gap while you are out'}</strong>
+      Nobody is home from ${fmt(aw.s)} to ${fmt(aw.e)}. That is ${span(d)}, and a puppy can hold it for 2 to 4 hours.
+      Ask a walker, a daycare or a friend to cover the trips marked Helper. If nobody can come, leave ${esc(name)} in an easy-to-clean pen, not a crate.</div>`;
+  }
+  $('#warn').innerHTML=w;
+
+  $('#rail').innerHTML=rows.map(r=>{
+    if(r.id===editing)return `<li class="row editing">
+      <label class="field">Time for this row <input type="time" id="ed-time" value="${hhmm(r.t)}"></label>
+      <button class="btn primary" data-act="save" data-id="${r.id}">Save time</button>
+      <button class="btn" data-act="del" data-id="${r.id}">Delete row</button>
+      <button class="btn" data-act="cancel">Cancel</button></li>`;
+    const helper=aw&&r.kind==='out'&&r.t>aw.s&&r.t<aw.e;
+    const body=r.kind==='out'
+      ?`<span class="stamp">OUT</span><span class="why">${esc(r.why)}</span>${helper?'<span class="tag">Helper</span>':''}`
+      :`<span class="label">${esc(r.label)}</span>${r.until?`<span class="why">until ${fmt(r.until)}</span>`:''}`;
+    return `<li class="row ${r.kind} ${r.layer||''}"><time>${fmt(r.t)}</time><i class="mark"></i>
+      <div class="what">${body}</div><button class="edit" data-act="edit" data-id="${r.id}" aria-label="Edit the ${fmt(r.t)} row">Edit</button></li>`;
+  }).join('');
+
+  const rest=st.rest==='pen'?'pen':'crate';
+  $('#tips').innerHTML=[
+    'Same door, same spot.',
+    `Say “go potty” while ${esc(name)} sniffs.`,
+    `The second ${esc(name)} finishes: “yes”, a treat, praise.`,
+    `Between trips, ${esc(name)} is either watched or in the ${rest}.`,
+    `Sniffing or circling means go now. Pick ${esc(name)} up and head for the spot.`
+  ].map(t=>'<li>'+t+'</li>').join('');
+}
+function drawNext(){
+  if(!S.rows)return;
+  const d=new Date(),now=d.getHours()*60+d.getMinutes();
+  const outs=sorted().filter(r=>r.kind==='out'),n=outs.find(r=>r.t>=now);
+  $('#next').innerHTML=n
+    ?`<div><span>Next trip out</span><br><b>${fmt(n.t)}</b></div><span>${n.t===now?'now':'in '+span(n.t-now)}</span>`
+    :`<div><span>No more trips today</span><br><b>${outs[0]?fmt(outs[0].t):''}</b></div><span>first trip tomorrow</span>`;
+}
+$('#rail').addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const id=b.dataset.id,act=b.dataset.act;
+  if(act==='edit')editing=id;
+  if(act==='cancel')editing=null;
+  if(act==='del'){S.rows=S.rows.filter(r=>r.id!==id);S.edited=true;editing=null}
+  if(act==='save'){const v=$('#ed-time').value;if(!v)return;S.rows.find(r=>r.id===id).t=m(v);S.edited=true;editing=null}
+  save();drawPlan();
+  if(act==='edit')$('#ed-time').focus();
+});
+$('#add-kind').addEventListener('change',e=>$('#add-text-wrap').hidden=e.target.value!=='note');
+$('#addrow').addEventListener('submit',e=>{
+  e.preventDefault();
+  const t=$('#add-time').value;if(!t)return;
+  const note=$('#add-kind').value==='note';
+  S.rows.push(note
+    ?{id:uid(),t:m(t),kind:'note',label:$('#add-text').value.trim()||'Note'}
+    :{id:uid(),t:m(t),kind:'out',layer:'yours',why:'Added by you'});
+  S.edited=true;$('#add-text').value='';save();drawPlan();
+});
+
+/* ---------- journal ---------- */
+const RES={pee:'Pee',poop:'Poop',both:'Pee + poop',nothing:'Nothing'};
+const BEFORE={woke:'Woke up',ate:'Ate',drank:'Drank',played:'Played',crate:'Out of the crate',clock:'On the clock',sniff:'Sniffing or circling'};
+const BEFORE_TXT={woke:'just woke up',ate:'after eating',drank:'after a drink',played:'after play',crate:'out of the crate',clock:'on the clock',sniff:'was sniffing or circling'};
+const WHERE={spot:'Usual spot',outside:'Elsewhere outside',inside:'Inside'};
+const WHERE_TXT={spot:'usual spot',outside:'elsewhere outside',inside:'inside'};
+const EV={drank:'Drank',ate:'Ate',woke:'Woke up'};
+const dayKey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today=()=>dayKey(new Date());
+const dayDate=k=>{const[y,mo,d]=k.split('-').map(Number);return new Date(y,mo-1,d)};
+let day=today(), openId=null;
+function dayLabel(k){
+  const nice=dayDate(k).toLocaleDateString([], {weekday:'short',day:'numeric',month:'short'});
+  const y=new Date();y.setDate(y.getDate()-1);
+  return k===today()?'Today, '+nice:k===dayKey(y)?'Yesterday, '+nice:nice;
+}
+function shiftDay(n){const d=dayDate(day);d.setDate(d.getDate()+n);const k=dayKey(d);if(k>today())return;day=k;openId=null;drawJournal()}
+function logEntry(e){
+  const d=new Date(),x={id:uid(),d:day,t:day===today()?d.getHours()*60+d.getMinutes():720,...e};
+  S.log.push(x);openId=x.id;save();drawJournal();
+  const ed=$('#jrail .editing');if(ed)ed.scrollIntoView({block:'nearest'});
+}
+const chips=(field,map,cur)=>'<div class="chips">'+Object.entries(map).map(([k,l])=>
+  `<button type="button" class="chip" aria-pressed="${cur===k}" data-chip="${field}" data-v="${k}">${l}</button>`).join('')+'</div>';
+function jRow(e){
+  const edit=`<button class="edit" data-act="open" data-id="${e.id}" aria-label="Edit the ${fmt(e.t)} entry">Edit</button>`;
+  if(e.type==='event'){
+    const nw=new Date(),off=S.setup.after[e.what];
+    const due=e.d===today()&&off&&e.t+off>=nw.getHours()*60+nw.getMinutes()?`<span class="why">trip due by ${fmt(e.t+S.setup.after[e.what])}</span>`:'';
+    return `<li class="row j ev"><time>${fmt(e.t)}</time><i class="mark"></i><div class="what"><span class="label">${EV[e.what]}</span>${due}</div>${edit}</li>`;
+  }
+  const cls=e.accident?'acc':e.result==='nothing'?'none':'went';
+  const bits=[BEFORE_TXT[e.before],WHERE_TXT[e.where]].filter(Boolean).join(' · ');
+  return `<li class="row j ${cls}"><time>${fmt(e.t)}</time><i class="mark"></i><div class="what">
+    <span class="stamp">${RES[e.result]}</span>${e.accident?'<span class="tag">Accident</span>':''}
+    ${bits?`<span class="why">${bits}</span>`:''}${e.before?'':'<span class="why ask">before: not set</span>'}
+    ${e.note?`<span class="why note">${esc(e.note)}</span>`:''}</div>${edit}</li>`;
+}
+function jEditor(e){
+  const tail=`<label class="field">Time <input type="time" data-jf="t" value="${hhmm(e.t)}"></label>`;
+  const acts=`<div class="actions"><button type="button" class="btn primary" data-act="close">Done</button>
+    <button type="button" class="btn" data-act="jdel" data-id="${e.id}">Delete</button></div>`;
+  if(e.type==='event')return `<li class="row editing jed"><p class="edhead"><b>${EV[e.what]}</b> at ${fmt(e.t)}</p>
+    <div class="chipset"><span class="cq">What was it?</span>${chips('what',EV,e.what)}</div>${tail}${acts}</li>`;
+  return `<li class="row editing jed"><p class="edhead"><b>${e.accident?'Accident':RES[e.result]}</b> at ${fmt(e.t)}, saved.</p>
+    ${e.accident?`<p class="acchint">Did not see it happen? Do not punish it. ${esc(pupName())} will not connect it. If you catch it in the act, interrupt and go straight outside.</p>`:''}
+    <div class="chipset"><span class="cq">What happened just before? <small>This is what finds the pattern.</small></span>${chips('before',BEFORE,e.before)}</div>
+    <div class="chipset"><span class="cq">Where?</span>${chips('where',WHERE,e.where)}</div>
+    <div class="chipset"><span class="cq">What was it?</span>${chips('result',RES,e.result)}</div>
+    ${tail}<label class="field">Note <input type="text" data-jf="note" value="${esc(e.note||'')}" autocomplete="off"></label>${acts}</li>`;
+}
+function drawJournal(){
+  const isToday=day===today();
+  $('#day-label').textContent=dayLabel(day);
+  $('#day-next').disabled=isToday;
+  $('#past-hint').hidden=isToday;
+  const list=S.log.map((e,i)=>[e,i]).filter(x=>x[0].d===day).sort((a,b)=>b[0].t-a[0].t||b[1]-a[1]).map(x=>x[0]);
+  $('#jrail').classList.toggle('bare',!list.length);
+  $('#jrail').innerHTML=list.length?list.map(e=>e.id===openId?jEditor(e):jRow(e)).join('')
+    :`<li class="empty">Nothing logged ${isToday?'today':'for this day'} yet. Tap a button above when ${esc(pupName())} goes.</li>`;
+  $('#share-msg').textContent='Sends the journal as text, to whoever you choose.';
+  header();drawSug();
+}
+
+/* ---------- reading the journal: one suggestion at a time ---------- */
+const TRIG={drank:{noun:'a drink',when:'after every drink'},ate:{noun:'a meal',when:'after every meal'},
+  woke:{noun:'waking up',when:'after waking up'},played:{noun:'play',when:'after play ends'}};
+let cur=null, notice='';
+const whenTxt=a=>(a.d===today()?'today':dayDate(a.d).toLocaleDateString([], {weekday:'short'}))+' '+fmt(a.t);
+function changes(){
+  const st=S.setup,af=st.after,out=[];
+  if(af.drank!==20||af.ate!==20)out.push(`Trips come ${Math.min(af.ate,af.drank)} minutes after food and water.`);
+  if(af.woke)out.push(`A second trip ${af.woke} minutes after waking.`);
+  if(af.played)out.push(`A second trip ${af.played} minutes after play.`);
+  if(st.half)out.push(`A trip every 30 minutes from ${fmt(st.half.s)} to ${fmt(st.half.e)}.`);
+  return out;
+}
+function suggest(){
+  const st=S.setup,af=st.after,name=esc(pupName()),keys=[];
+  if(!S.log.length)return null;
+  for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);keys.push(dayKey(d))}
+  const accs=S.log.filter(e=>e.type==='trip'&&e.accident&&!e.used&&keys.includes(e.d)).sort((a,b)=>a.d.localeCompare(b.d)||a.t-b.t);
+  const by={},loose=[];
+  accs.forEach(a=>{
+    // the reading rule: look 10 to 30 minutes before each accident
+    const near=S.log.filter(e=>e.type==='event'&&e.d===a.d&&a.t-e.t>=10&&a.t-e.t<=30).sort((x,y)=>y.t-x.t);
+    const ev=near.find(e=>e.what===a.before)||near[0];
+    const k=ev?ev.what:TRIG[a.before]?a.before:null;
+    if(k)(by[k]=by[k]||[]).push({a,gap:ev?a.t-ev.t:null});else loose.push(a);
+  });
+
+  // 1. the same trigger before two or more accidents: go out sooner after it
+  const top=Object.entries(by).sort((x,y)=>y[1].length-x[1].length)[0];
+  if(top&&top[1].length>=2){
+    const[k,hits]=top,gaps=hits.map(h=>h.gap).filter(g=>g!=null),second=k==='woke'||k==='played';
+    const now=af[k],floor=second?15:5;
+    let min=gaps.length?Math.min(...gaps)-5:now?now-5:15;
+    if(now&&min>=now)min=now-5;
+    if(min>=floor){
+      const list=hits.map(h=>whenTxt(h.a)).join(', ');
+      return {kind:'after',k,min,ids:hits.map(h=>h.a.id),
+        title:`Add a ${second?'second ':''}trip ${min} minutes ${TRIG[k].when}`,
+        body:`${hits.length} accidents came ${gaps.length?'about '+Math.min(...gaps)+' minutes':'soon'} after ${TRIG[k].noun}: ${list}. `
+          +(second?`One trip is not enough for ${name} there.`:`The schedule waits ${now} minutes. Go out at ${min} instead.`),
+        done:second?`Added from the journal: a second trip ${min} minutes ${TRIG[k].when}.`
+          :`Changed from the journal: trips now come ${min} minutes after food and water.`};
+    }
+  }
+
+  // 2. two or more accidents with nothing before them: hourly is too long there
+  if(loose.length>=2){
+    const ts=loose.map(a=>a.t);let s=Math.floor(Math.min(...ts)/60)*60,e=Math.ceil(Math.max(...ts)/60)*60;
+    if(e===s)e=s+60;
+    const allDay=e-s>180;if(allDay){s=m(st.wake);e=m(st.bed)}
+    if(!st.half||st.half.s>s||st.half.e<e)return {kind:'half',s,e,ids:loose.map(a=>a.id),
+      title:allDay?'Go out every 30 minutes, all day':`Go out every 30 minutes from ${fmt(s)} to ${fmt(e)}`,
+      body:`${loose.length} accidents happened between trips, with nothing in the journal just before them: ${loose.map(whenTxt).join(', ')}. An hour is too long for ${name} to wait${allDay?'':' at that time of day'}.`,
+      done:`Changed from the journal: a trip every 30 minutes${allDay?', all day':` from ${fmt(s)} to ${fmt(e)}`}.`};
+  }
+
+  // 3. a run of clean days: more freedom
+  let n=0;const d=new Date(),tripsOn=k=>S.log.filter(e=>e.d===k&&e.type==='trip');
+  if(!tripsOn(dayKey(d)).length)d.setDate(d.getDate()-1);
+  while(n<60){const k=dayKey(d),tr=tripsOn(k);
+    if(!tr.length||tr.some(e=>e.accident)||(S.freeAck&&k<=S.freeAck))break;
+    n++;d.setDate(d.getDate()-1)}
+  if(n>=7)return {kind:'free',title:'7 days with no accidents',
+    body:`Seven days in a row of logged trips and not one accident. Open up one more room for ${name}, then keep logging.`};
+  return {kind:'quiet',text:n?`${n} ${n===1?'day':'days'} in a row with no accidents. At 7, ${name} earns one more room.`
+    :'No pattern yet. Two accidents with the same cause make one, so keep logging what happened just before.'};
+}
+function drawSug(){
+  cur=suggest();let h='';
+  if(cur&&cur.kind!=='quiet')h=`<div class="sug"><span class="from">From the journal</span><strong>${cur.title}</strong><p>${cur.body}</p><div class="actions">`
+    +(cur.kind==='free'?'<button type="button" class="btn primary" data-sug="ack">Got it</button>'
+      :'<button type="button" class="btn primary" data-sug="apply">Change the schedule</button><button type="button" class="btn" data-sug="skip">Not now</button>')+'</div></div>';
+  $('#sug-p').innerHTML=h;
+  $('#sug-j').innerHTML=cur&&cur.kind==='quiet'?`<p class="quiet">${cur.text}</p>`:h;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-sug]');if(!b||!cur)return;
+  const act=b.dataset.sug,st=S.setup;
+  if(act==='ack')S.freeAck=today();
+  else{
+    if(act==='apply'){
+      if(S.rows&&S.edited&&!confirm('This rebuilds the schedule and replaces the rows you edited by hand. Change it?'))return;
+      if(cur.kind==='after')st.after[cur.k]=cur.min;else st.half={s:cur.s,e:cur.e};
+      if(S.rows){S.rows=build(st);S.edited=false}
+      notice=cur.done;
+    }
+    const ids=cur.ids;S.log.forEach(x=>{if(ids.includes(x.id))x.used=true});
+  }
+  save();
+  if(act==='apply')show(S.rows?'plan':'setup',true);else{drawSug()}
+});
+$('#day-prev').addEventListener('click',()=>shiftDay(-1));
+$('#day-next').addEventListener('click',()=>shiftDay(1));
+$('#pad').addEventListener('click',e=>{
+  const k=e.target.closest('[data-log]')?.dataset.log;if(!k)return;
+  logEntry(k==='accident'?{type:'trip',result:'pee',where:'inside',accident:true}:{type:'trip',result:k,accident:false});
+});
+$('#also').addEventListener('click',e=>{const k=e.target.closest('[data-ev]')?.dataset.ev;if(k)logEntry({type:'event',what:k})});
+$('#jrail').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.chip){
+    const x=S.log.find(r=>r.id===openId),f=b.dataset.chip,v=b.dataset.v;if(!x)return;
+    x[f]=(f==='before'||f==='where')&&x[f]===v?undefined:v;
+    if(x.type==='trip')x.accident=x.where==='inside'&&x.result!=='nothing';
+  }
+  else if(b.dataset.act==='open')openId=b.dataset.id;
+  else if(b.dataset.act==='close')openId=null;
+  else if(b.dataset.act==='jdel'){S.log=S.log.filter(r=>r.id!==b.dataset.id);openId=null}
+  else return;
+  save();drawJournal();
+});
+$('#jrail').addEventListener('change',e=>{
+  const f=e.target.dataset.jf,x=S.log.find(r=>r.id===openId);if(!f||!x)return;
+  if(f==='t'){if(!e.target.value)return;x.t=m(e.target.value);save();drawJournal()}
+  else{x.note=e.target.value.trim();save()}
+});
+
+/* ---------- help, share, calendar ---------- */
+const FAQ=[
+  ['Should I punish accidents?','Not after the fact. The puppy will not connect it, and rubbing its nose in it or yelling only confuses it. If you catch it in the act, interrupt and take it straight outside. Then log it.'],
+  ['Every hour, or every 30 minutes?','Start with every hour plus the trigger trips. If the journal shows accidents between trips, shorten the gap. The journal will suggest it when it sees the pattern.'],
+  ['How long until my puppy is trained?','With a tight schedule, some puppies get there in about a week. A dog with a rough start can take many months. It depends on the dog’s history, and the journal shows you the progress.'],
+  ['What if the puppy does not go when I take it out?','Wait it out. The puppy does not come back into the house or the crate until it goes. Then log what happened.'],
+  ['I work full-time. What do I do?','A puppy cannot hold it through a workday. Ask a dog walker, a daycare, a friend or a neighbour. If nobody can come, use an easy-to-clean pen, not a crate all day.'],
+  ['Should I limit water?','Do not leave it down all day. Give it at set times, as you do with food, so you can predict the pee. Set times does not mean less water: always offer it with meals and after play.'],
+  ['What about night-time?','Use the 2 to 4 hour limit as your guide. For a young puppy, set one alarm in the night, go straight out and straight back to bed, with no play. Log it.'],
+  ['Are pee pads OK?','The goal is outside, in the same spot. A pad is a backup, not the plan.'],
+  ['Is a bell on the door worth it?','It is optional. Ring it every time you open the potty door, always the same door, until the puppy rings it to ask. You can take it away later.'],
+  ['When can my puppy roam the house?','When the journal shows day after day with no accidents. Open one room at a time. Too much freedom too soon is the classic mistake.'],
+  ['Do I treat while it is going, or after?','Both. Calm praise while it is going, then “yes” and a treat the second it finishes.']
+];
+$('#faq').innerHTML=FAQ.map(([q,a])=>`<details><summary>${q}</summary><p>${a}</p></details>`).join('');
+$('#help-open').addEventListener('click',()=>$('#help').showModal());
+$('#help-close').addEventListener('click',()=>$('#help').close());
+$('#help').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.close()});
+$('#erase').addEventListener('click',()=>{
+  if(!confirm('Erase the schedule, the journal and all your answers from this phone? This cannot be undone.'))return;
+  try{localStorage.removeItem(KEY)}catch(e){}
+  location.reload();
+});
+
+function journalText(){
+  const name=pupName(),L=[poss(name)+' potty journal'+(S.setup.age?` (${S.setup.age} weeks old)`:'')];
+  [...new Set(S.log.map(e=>e.d))].sort().forEach(k=>{
+    const es=S.log.filter(e=>e.d===k).sort((a,b)=>a.t-b.t),tr=es.filter(e=>e.type==='trip'),acc=tr.filter(e=>e.accident).length;
+    L.push('',`${dayDate(k).toLocaleDateString([], {weekday:'short',day:'numeric',month:'short'})}: ${tr.length} ${tr.length===1?'trip':'trips'}, ${acc} ${acc===1?'accident':'accidents'}`);
+    es.forEach(e=>L.push('  '+fmt(e.t)+'  '+(e.type==='event'?EV[e.what]
+      :[RES[e.result]+(e.accident?' (ACCIDENT)':''),BEFORE_TXT[e.before],WHERE_TXT[e.where],e.note].filter(Boolean).join(' · '))));
+  });
+  const ch=changes();if(ch.length)L.push('','Schedule changes from the journal: '+ch.join(' '));
+  return L.join('\n');
+}
+$('#share').addEventListener('click',async()=>{
+  const msg=$('#share-msg');
+  if(!S.log.length){msg.textContent='Nothing to share yet. Log a trip first.';return}
+  const text=journalText();
+  try{
+    if(navigator.share){await navigator.share({title:poss(pupName())+' potty journal',text});msg.textContent='Shared.';return}
+    await navigator.clipboard.writeText(text);msg.textContent='Copied. Paste it into a message or an email.';
+  }catch(err){
+    if(err&&err.name==='AbortError')return;
+    msg.innerHTML='Copy this text and send it:<textarea readonly rows="8"></textarea>';msg.querySelector('textarea').value=text;
+  }
+});
+
+function icsText(){
+  const p=n=>String(n).padStart(2,'0'),d=new Date(),ymd=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate());
+  const stamp=d.toISOString().replace(/[-:]/g,'').slice(0,15)+'Z',name=pupName();
+  const clean=s=>s.replace(/([\\;,])/g,'\\$1'),hm=t=>p(Math.floor(t/60))+p(t%60)+'00';
+  const evs=sorted().filter(r=>r.kind==='out').map(r=>['BEGIN:VEVENT','UID:'+uid()+uid()+'@pottyplan','DTSTAMP:'+stamp,
+    `DTSTART:${ymd}T${hm(r.t)}`,`DTEND:${ymd}T${hm(Math.min(r.t+5,1439))}`,'RRULE:FREQ=DAILY;COUNT=7',
+    'SUMMARY:'+clean(`${name} out: ${r.why}`),'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+clean(name+' out'),'TRIGGER:PT0M','END:VALARM','END:VEVENT'].join('\r\n'));
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Potty Plan//EN','CALSCALE:GREGORIAN',...evs,'END:VCALENDAR'].join('\r\n')+'\r\n';
+}
+$('#ics').addEventListener('click',()=>{
+  const a=document.createElement('a'),url=URL.createObjectURL(new Blob([icsText()],{type:'text/calendar'}));
+  a.href=url;a.download='potty-plan.ics';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+});
+
+/* ---------- views ---------- */
+function show(v,keepNotice){
+  if(v==='plan'&&!S.rows)v='setup';
+  if(!keepNotice||v!=='plan')notice='';
+  view=v;S.view=v;save();
+  ['plan','journal','setup'].forEach(k=>{$('#view-'+k).hidden=k!==v;$('#tab-'+k).setAttribute('aria-selected',k===v)});
+  $('#tab-plan').disabled=!S.rows;
+  if(v==='setup')drawSetup();
+  if(v==='plan')drawPlan();
+  if(v==='journal'){day=today();openId=null;drawJournal()}
+  header();
+  window.scrollTo(0,0);
+}
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b&&!b.disabled)show(b.dataset.view)});
+setInterval(drawNext,30000);
+show(S.view==='journal'?'journal':S.rows?'plan':'setup');
+</script>
+</body>
+</html>
