@@ -236,6 +236,13 @@ dialog .foot{margin-top:1.2rem;text-align:left}
   .top.stuck,.toast{background:var(--ink);-webkit-backdrop-filter:none;backdrop-filter:none}
 }
 
+.qerr{color:var(--warn);font-weight:600;font-size:.88rem;margin:.7rem 0 0}
+.born{animation:rise .34s var(--ease) both}
+@keyframes toastOut{to{opacity:0;transform:translateY(14px) scale(.96)}}
+@keyframes fadeOut{to{opacity:0}}
+.toast.out{animation:toastOut .18s ease-in forwards}
+@media (prefers-reduced-motion:reduce){.born{animation:fade .2s ease both}.toast.out{animation:fadeOut .15s ease forwards}}
+
 /* wider screens: the app sits as a card */
 @media (min-width:34rem){
   body{padding:2rem 0}
@@ -542,7 +549,7 @@ $('#setup').addEventListener('change',e=>{
   else if(el.dataset.k){const k=el.dataset.k,i=+el.dataset.i;if(el.dataset.f)st[k][i][el.dataset.f]=el.value;else st[k][i]=el.value}
   else if(el.name==='home'){st.home=el.value==='yes';$('#away').hidden=st.home}
   else if(el.name==='rest')st.rest=el.value;
-  save();
+  save();showProblem();
 });
 $('#setup').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
@@ -550,20 +557,33 @@ $('#setup').addEventListener('click',e=>{
   if(b.dataset.rm){const k=b.dataset.rm;S.setup[k].splice(+b.dataset.i,1);drawList(k);save()}
   if(b.dataset.undo){S.setup.after={...DEF.after};S.setup.half=null;save();drawSetup();
     if(S.rows){$('#err').hidden=false;$('#err').textContent='Undone. Rebuild the schedule to see it.'}}
+  showProblem();
 });
+function problem(){   // the first thing wrong with the answers, and the question it belongs to
+  const st=S.setup,q=sel=>document.querySelector(sel).closest('.q');
+  const empty=[...document.querySelectorAll('#setup input[type=time]')].find(i=>!i.closest('[hidden]')&&!/^\d\d:\d\d$/.test(i.value));
+  if(empty)return {msg:'This time is empty. Fill it in or remove the line.',at:empty.closest('.q')};
+  if(m(st.bed)<=m(st.wake))return {msg:'Bedtime has to be later than wake-up.',at:q('[data-s=bed]')};
+  if(st.naps.some(n=>m(n.e)<=m(n.s)))return {msg:'A nap has to end after it starts.',at:q('#list-naps')};
+  if(st.play.some(p=>m(p.e)<=m(p.s)))return {msg:'Play has to end after it starts.',at:q('#list-play')};
+  if(!st.home&&m(st.awayE)<=m(st.awayS))return {msg:'The second time has to be later than the first.',at:q('#away')};
+  return null;
+}
+function showProblem(){
+  const p=problem();
+  document.querySelectorAll('.qerr').forEach(e=>e.remove());
+  if(p){const el=document.createElement('p');el.className='qerr';el.setAttribute('role','alert');el.textContent=p.msg;p.at.appendChild(el)}
+  return p;
+}
 $('#setup').addEventListener('submit',e=>{
   e.preventDefault();
-  const st=S.setup,err=$('#err');let msg='';
-  const times=[st.wake,st.bed,...st.meals,...st.water,...st.naps.flatMap(n=>[n.s,n.e]),...st.play.flatMap(p=>[p.s,p.e])];
-  if(times.some(t=>!/^\d\d:\d\d$/.test(t)))msg='One of the times is empty. Fill it in or remove that line.';
-  else if(m(st.bed)<=m(st.wake))msg='Bedtime has to be later than wake-up.';
-  else if(st.naps.some(n=>m(n.e)<=m(n.s)))msg='A nap has to end after it starts.';
-  else if(st.play.some(p=>m(p.e)<=m(p.s)))msg='Play has to end after it starts.';
-  else if(!st.home&&(!st.awayS||!st.awayE||m(st.awayE)<=m(st.awayS)))msg='Check the hours nobody is home. The second time has to be later than the first.';
-  err.hidden=!msg;err.textContent=msg;
-  if(msg)return;
-  if(S.rows&&S.edited&&!confirm('This replaces the schedule you edited by hand. Rebuild it?'))return;
+  const st=S.setup,p=showProblem();
+  $('#err').hidden=true;
+  if(p){p.at.scrollIntoView({block:'center',behavior:reduce.matches?'auto':'smooth'});return}
+  // rebuilding over hand edits happens at once and can be taken back, instead of asking first
+  const prev=S.rows&&S.edited?S.rows:null;
   S.rows=build(st);S.edited=false;editing=null;save();fresh=true;show('plan');
+  if(prev)toast('Rebuilt without your edits',()=>{S.rows=prev;S.edited=true;save();show('plan')});
 });
 
 /* ---------- schedule screen ---------- */
@@ -657,8 +677,9 @@ function drawNext(){
   const row=`<div class="alarm"><span class="lbl">Alarm</span>`+LEADS.map(([v,l])=>`<button type="button" data-alarm="${v??''}" aria-pressed="${on?al===v:v===null}">${l}</button>`).join('')+'</div>'
     +(on?`<p class="anote">Rings while this page is open. A locked phone stays silent.`
       +('wakeLock' in navigator?`<button type="button" class="awake" data-awake="1" aria-pressed="${!!S.awake}">Keep the screen on</button>`:'')+'</p>':'');
-  $('#next').innerHTML=h?h.replace('%A%','')+row:'';$('#next').hidden=!h;
-  $('#next-j').innerHTML=h.replace('%A%',on?(al?` · alarm ${al} min before`:' · alarm when due'):'');$('#next-j').hidden=!h;
+  const put=(q,html)=>{const el=$(q);if(el._h!==html){el._h=html;el.innerHTML=html}el.hidden=!html};
+  put('#next',h?h.replace('%A%','')+row:'');
+  put('#next-j',h.replace('%A%',on?(al?` · alarm ${al} min before`:' · alarm when due'):''));
 }
 
 /* ---------- alarm: rings a set time before the next trip, while the page is open ---------- */
@@ -695,7 +716,7 @@ function checkAlarm(quiet){
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-alarm],[data-awake]');if(!b)return;
   if(b.dataset.awake)S.awake=!S.awake;
-  else{S.alarm=b.dataset.alarm===''?null:+b.dataset.alarm;rang=null;if(S.alarm!=null){unlockSound();setTimeout(()=>chime([0]),60)}}
+  else{S.alarm=b.dataset.alarm===''?null:+b.dataset.alarm;rang=null;if(S.alarm!=null){unlockSound();if(actx)(actx.state==='running'?Promise.resolve():actx.resume()).then(()=>chime([0])).catch(()=>{})}}
   save();holdAwake();drawNext();checkAlarm(true);
 });
 document.addEventListener('pointerdown',()=>{if(S.alarm!=null)unlockSound()},{passive:true});
@@ -743,7 +764,7 @@ function shiftDay(n){const d=dayDate(day);d.setDate(d.getDate()+n);const k=dayKe
 function logEntry(e){
   const d=new Date(),x={id:uid(),d:day,t:day===today()?d.getHours()*60+d.getMinutes():720,...e};
   S.log.push(x);openId=x.id;save();buzz();drawJournal();
-  const ed=$('#jrail .editing');if(ed)ed.scrollIntoView({block:'nearest'});
+  const ed=$('#jrail .editing');if(ed){ed.classList.add('born');ed.scrollIntoView({block:'nearest'})}
 }
 const chips=(field,map,cur)=>'<div class="chips">'+Object.entries(map).map(([k,l])=>
   `<button type="button" class="chip" aria-pressed="${cur===k}" data-chip="${field}" data-v="${k}">${l}</button>`).join('')+'</div>';
@@ -866,18 +887,20 @@ function drawSug(){
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-sug]');if(!b||!cur)return;
   const act=b.dataset.sug,st=S.setup;
-  if(act==='ack')S.freeAck=today();
-  else{
-    if(act==='apply'){
-      if(S.rows&&S.edited&&!confirm('This rebuilds the schedule and replaces the rows you edited by hand. Change it?'))return;
-      if(cur.kind==='after')st.after[cur.k]=cur.min;else st.half={s:cur.s,e:cur.e};
-      if(S.rows){S.rows=build(st);S.edited=false}
-      notice=cur.done;
-    }
-    const ids=cur.ids;S.log.forEach(x=>{if(ids.includes(x.id))x.used=true});
+  if(act==='ack'){S.freeAck=today();save();drawSug();return}
+  // applying or dismissing happens at once, and either can be taken back
+  const snap={rows:S.rows,edited:S.edited,after:{...st.after},half:st.half,ids:cur.ids};
+  const back=()=>{S.rows=snap.rows;S.edited=snap.edited;st.after=snap.after;st.half=snap.half;
+    S.log.forEach(x=>{if(snap.ids.includes(x.id))delete x.used});save();show(view)};
+  if(act==='apply'){
+    if(cur.kind==='after')st.after[cur.k]=cur.min;else st.half={s:cur.s,e:cur.e};
+    if(S.rows){S.rows=build(st);S.edited=false}
+    notice=cur.done;
   }
+  S.log.forEach(x=>{if(snap.ids.includes(x.id))x.used=true});
   save();
-  if(act==='apply'){fresh=true;buzz();show(S.rows?'plan':'setup',true)}else{drawSug()}
+  if(act==='apply'){fresh=true;buzz();show(S.rows?'plan':'setup',true);toast('Schedule changed',back)}
+  else{drawSug();toast('Suggestion dismissed',back)}
 });
 $('#day-prev').addEventListener('click',()=>shiftDay(-1));
 $('#day-next').addEventListener('click',()=>shiftDay(1));
@@ -991,15 +1014,37 @@ const dropSheet=e=>{
 };
 grab.addEventListener('pointerup',dropSheet);
 grab.addEventListener('pointercancel',dropSheet);
+/* pulling down on the questions themselves also moves the sheet, once they are scrolled to the top */
+const pbody=$('.pbody');let pull=null;
+pbody.addEventListener('touchstart',e=>{pull=e.touches.length===1?{x:e.touches[0].clientX,y:e.touches[0].clientY,on:false}:null},{passive:true});
+pbody.addEventListener('touchmove',e=>{
+  if(!pull)return;
+  const t=e.touches[0],dy=t.clientY-pull.y,dx=t.clientX-pull.x;
+  if(!pull.on){
+    if(pbody.scrollTop>0||dy<-4||!e.cancelable){pull=null;return}          // the list is scrolling: leave it alone
+    if(dy<10||Math.abs(dx)>dy)return;                                        // not yet clearly a pull down
+    pull.on=true;if(anim){anim.stop();anim=null}sh=panel.offsetHeight;
+    drag={id:'touch',off:t.clientY-sy,hist:[[e.timeStamp,t.clientY]]};
+  }
+  e.preventDefault();
+  setSheet(Math.max(0,t.clientY-drag.off));
+  drag.hist.push([e.timeStamp,t.clientY]);if(drag.hist.length>6)drag.hist.shift();
+},{passive:false});
+const endPull=e=>{if(pull&&pull.on)dropSheet({pointerId:'touch',timeStamp:e.timeStamp});pull=null};
+pbody.addEventListener('touchend',endPull);
+pbody.addEventListener('touchcancel',endPull);
 
 /* deleting is instant, with a way back */
 let undoFn=null,toastT;
+let hideT;
+function hideToast(){const t=$('#toast');undoFn=null;clearTimeout(toastT);clearTimeout(hideT);t.classList.add('out');hideT=setTimeout(()=>{t.hidden=true;t.classList.remove('out')},190)}
 function toast(msg,undo,stay){   // stay = button label for a notice that waits to be dismissed
-  const t=$('#toast');undoFn=undo;$('#toast-msg').textContent=msg;$('#toast-undo').textContent=stay||'Undo';
+  const t=$('#toast');clearTimeout(hideT);clearTimeout(toastT);t.classList.remove('out');
+  undoFn=undo;$('#toast-msg').textContent=msg;$('#toast-undo').textContent=stay||'Undo';
   t.hidden=true;void t.offsetWidth;t.hidden=false;
-  clearTimeout(toastT);if(!stay)toastT=setTimeout(()=>{t.hidden=true;undoFn=null},6000);
+  if(!stay)toastT=setTimeout(hideToast,6000);
 }
-$('#toast-undo').addEventListener('click',()=>{const f=undoFn;undoFn=null;$('#toast').hidden=true;document.title='Potty Plan';if(f)f()});
+$('#toast-undo').addEventListener('click',()=>{const f=undoFn;hideToast();document.title='Potty Plan';if(f)f()});
 
 /* touch details: pressed states show on touch-down on iOS; the header turns to glass once it sticks */
 document.addEventListener('touchstart',()=>{},{passive:true});
