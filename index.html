@@ -166,6 +166,12 @@ details li{margin-bottom:.4rem}
 .j.none .stamp{box-shadow:inset 0 0 0 1px #B9C4CE}
 .j.acc .mark{background:var(--warn);border-color:var(--warn);width:11px;height:11px}
 .j.acc .stamp{background:var(--warn);color:#fff}
+.j.poop .mark{background:#8B5A2E;border-color:#8B5A2E}
+.j.poop .stamp{background:#8B5A2E;color:#fff}
+.j.both .mark{background:linear-gradient(90deg,var(--hi) 50%,#8B5A2E 50%);border-color:#8B5A2E}
+.j.both .stamp{background:linear-gradient(90deg,var(--hi) 50%,#E9C79F 50%)}
+.jico{display:inline-flex;gap:1px;flex:none}
+.jico svg{width:1.6rem;height:1.6rem;display:block}
 .j.ev .mark{border-radius:3px;background:var(--sky);border-color:var(--sky)}
 .j.ev .label{background:var(--sky-soft);color:var(--sky-ink);padding:.25rem .7rem;border-radius:999px}
 .why.note{flex-basis:100%;color:var(--mute);font-style:italic}
@@ -821,10 +827,12 @@ function jRow(e){
     const due=e.d===today()&&off&&e.t+off>=nw.getHours()*60+nw.getMinutes()?`<span class="why">trip due by ${fmt(e.t+S.setup.after[e.what])}</span>`:'';
     return `<li class="row j ev"><time>${fmt(e.t)}</time><i class="mark"></i><div class="what"><span class="label">${EV[e.what]}</span>${due}</div>${edit}</li>`;
   }
-  const cls=e.accident?'acc':e.result==='nothing'?'none':'went';
+  const cls=e.accident?'acc':e.result==='nothing'?'none':e.result==='poop'?'went poop':e.result==='both'?'went both':'went';
+  const face=k=>{const svg=document.querySelector(`[data-log=${k}] .ico`);return svg?svg.outerHTML.replace('class="ico"',''):''};
+  const ico='<span class="jico" aria-hidden="true">'+(e.accident?face('accident'):e.result==='both'?face('pee')+face('poop'):face(e.result))+'</span>';
   const bits=[e.before?BEFORE_TXT[e.before]:'<span class="ask">before: not set</span>',WHERE_TXT[e.where]].filter(Boolean).join(' · ');
   return `<li class="row j ${cls}"><time>${fmt(e.t)}</time><i class="mark"></i><div class="what">
-    <span class="stamp">${RES[e.result]}</span>${e.accident?'<span class="tag">Accident</span>':''}
+    ${ico}<span class="stamp">${RES[e.result]}</span>${e.accident?'<span class="tag">Accident</span>':''}
     <span class="why">${bits}</span>
     ${e.note?`<span class="why note">${esc(e.note)}</span>`:''}</div>${edit}</li>`;
 }
