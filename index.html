@@ -7,6 +7,11 @@
 <meta name="description" content="Build a potty-training schedule for your puppy and keep a journal that tells you how to fix it.">
 <meta name="theme-color" content="#171F27">
 <meta name="apple-mobile-web-app-title" content="Potty Plan">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23F5C84C'/%3E%3Ccircle cx='32' cy='32' r='15' fill='none' stroke='%23171F27' stroke-width='6'/%3E%3C/svg%3E">
 <style>
 /* fonts are served from this site, so no visitor data goes to a font host (licences in fonts/) */
@@ -36,7 +41,7 @@ button{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 [hidden]{display:none!important}
 
 /* header */
-.top{margin:0 -1rem;padding:max(1.5rem,env(safe-area-inset-top)) 1.25rem 1rem;position:sticky;top:-5.3rem;z-index:3;background:var(--ink);color:#fff;transition:background-color .25s}
+.top{margin:0 -1rem;padding:max(1.5rem,env(safe-area-inset-top)) 1.25rem 1rem;position:sticky;top:calc(-1*(max(1.5rem,env(safe-area-inset-top)) + 4.5rem - max(.7rem,env(safe-area-inset-top) + .4rem)));z-index:3;background:var(--ink);color:#fff;transition:background-color .25s}
 /* once only the tab bar is left on screen it becomes a material: content scrolls under it */
 .top.stuck{background:rgba(23,31,39,.86);-webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%)}
 .toprow{display:flex;justify-content:space-between;align-items:center;gap:.8rem}
@@ -243,6 +248,11 @@ dialog .foot{margin-top:1.2rem;text-align:left}
 .toast.out{animation:toastOut .18s ease-in forwards}
 @media (prefers-reduced-motion:reduce){.born{animation:fade .2s ease both}.toast.out{animation:fadeOut .15s ease forwards}}
 
+.install{margin:0 0 1rem;padding:1rem 1.1rem;border-radius:16px;background:var(--sky-soft);color:var(--sky-ink)}
+.install strong{display:block;font:600 1.02rem var(--display);margin-bottom:.25rem}
+.install p{margin:0;font-size:.92rem}
+.install .btn{margin-top:.8rem}
+
 /* wider screens: the app sits as a card */
 @media (min-width:34rem){
   body{padding:2rem 0}
@@ -410,7 +420,8 @@ dialog .foot{margin-top:1.2rem;text-align:left}
       </div>
     </section>
   </main>
-  <footer class="foot">Everything you enter stays on this phone. Nothing is sent anywhere unless you tap Share.</footer>
+  <footer class="foot">Everything you enter stays on this phone. Nothing is sent anywhere unless you tap Share.
+    <span id="install-foot" hidden><br>Add this page to your home screen to use it with no signal. Help shows how.</span></footer>
 
 </div>
 
@@ -419,6 +430,11 @@ dialog .foot{margin-top:1.2rem;text-align:left}
   <div class="panel" id="help-panel">
     <div class="dhead" id="help-grab"><span class="grabber" aria-hidden="true"></span><h2 id="help-title">Common questions</h2><button type="button" class="btn" id="help-close">Close</button></div>
     <div class="pbody">
+      <div class="install" id="install" hidden>
+        <strong>Keep it on your home screen</strong>
+        <p id="install-how"></p>
+        <button type="button" class="btn primary" id="install-btn" hidden>Install Potty Plan</button>
+      </div>
       <div id="faq"></div>
       <p class="foot">Everything you enter stays on this phone. Nothing is sent anywhere unless you tap Share. No account, no tracking.</p>
       <button type="button" class="x" id="erase">Erase everything on this phone</button>
@@ -583,6 +599,7 @@ $('#setup').addEventListener('submit',e=>{
   // rebuilding over hand edits happens at once and can be taken back, instead of asking first
   const prev=S.rows&&S.edited?S.rows:null;
   S.rows=build(st);S.edited=false;editing=null;save();fresh=true;show('plan');
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}   // ask the browser not to clear the journal
   if(prev)toast('Rebuilt without your edits',()=>{S.rows=prev;S.edited=true;save();show('plan')});
 });
 
@@ -942,7 +959,8 @@ const FAQ=[
   ['Is a bell on the door worth it?','It is optional. Ring it every time you open the potty door, always the same door, until the puppy rings it to ask. You can take it away later.'],
   ['When can my puppy roam the house?','When the journal shows day after day with no accidents. Open one room at a time. Too much freedom too soon is the classic mistake.'],
   ['Do I treat while it is going, or after?','Both. Calm praise while it is going, then “yes” and a treat the second it finishes.'],
-  ['Why did the alarm not ring?','The alarm only rings while this page is open and the screen is on. A locked phone stays silent. For reminders that ring on a locked phone, use “Add a week of reminders to my calendar” on the Schedule.']
+  ['Why did the alarm not ring?','The alarm only rings while this page is open and the screen is on. A locked phone stays silent. For reminders that ring on a locked phone, use “Add a week of reminders to my calendar” on the Schedule.'],
+  ['Does it work with no signal?','Yes, once it has been opened one time with a connection. Add it to your home screen and it opens like an app. The alarm still needs the app open.']
 ];
 $('#faq').innerHTML=FAQ.map(([q,a])=>`<details><summary>${q}</summary><p>${a}</p></details>`).join('');
 
@@ -1095,6 +1113,20 @@ $('#ics').addEventListener('click',()=>{
   a.href=url;a.download='potty-plan.ics';document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),5000);
 });
+
+/* ---------- install and offline ---------- */
+const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+let installEvt=null;
+if(!standalone){
+  $('#install-how').textContent=/iPhone|iPad|iPod/.test(navigator.userAgent)
+    ?'In Safari, tap the Share button, then “Add to Home Screen”. It then opens like an app and works with no signal. Do this before you start: the home-screen app keeps its own schedule and journal.'
+    :'Open your browser’s menu and choose “Install app” or “Add to Home screen”. It then opens like an app and works with no signal.';
+  $('#install').hidden=false;$('#install-foot').hidden=false;
+  addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;$('#install-btn').hidden=false});
+  $('#install-btn').addEventListener('click',async()=>{if(!installEvt)return;installEvt.prompt();await installEvt.userChoice;installEvt=null;$('#install-btn').hidden=true});
+  addEventListener('appinstalled',()=>{$('#install').hidden=true;$('#install-foot').hidden=true});
+}
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
 /* ---------- views ---------- */
 function show(v,keepNotice){
